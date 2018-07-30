@@ -571,7 +571,8 @@ class HobsOut(dict):
             tick_num = []
             tick_name = []
             for index, meta_data in sorted(d.items()):
-                axes.bar(index, meta_data['frequency'], width=0.8)
+                axes.bar(index, meta_data['frequency'], width=0.8,
+                         **kwargs)
                 tick_num.append(index)
                 tick_name.append(meta_data['name'])
 
