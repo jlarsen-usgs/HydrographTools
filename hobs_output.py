@@ -502,7 +502,8 @@ class HobsOut(dict):
 
         return axes
 
-    def plot_simulated_vs_residual(self, filter=None, **kwargs):
+    def plot_simulated_vs_residual(self, filter=None,
+                                   histogram=False, **kwargs):
         """
         Creates a matplotlib plot of simulated heads vs residual
 
@@ -510,6 +511,10 @@ class HobsOut(dict):
             filter: (str, list, tuple, or function)
                 filtering criteria for writing statistics.
                 Function must return True for filter out, false for write to file
+            histogram: (bool)
+                Boolean variable that defines either a scatter plot (False)
+                or a histogram (True) of residuals
+
             **kwargs: matplotlib.pyplot plotting kwargs
 
         Returns:
@@ -517,17 +522,68 @@ class HobsOut(dict):
         """
         axes = plt.subplot(111)
 
-        for obsname, meta_data in self.items():
+        if not histogram:
+            for obsname, meta_data in self.items():
 
-            if self.__filter(obsname, filter):
-                continue
+                if self.__filter(obsname, filter):
+                    continue
 
-            residual = meta_data['residual']
-            observed = meta_data['obsval']
+                residual = meta_data['residual']
+                observed = meta_data['obsval']
 
-            axes.plot(observed, residual, 'bo', markeredgecolor="k")
+                axes.plot(observed, residual, 'bo', markeredgecolor="k")
+
+        else:
+            bins = np.arange(-25, 26, 5)
+
+            d = {}
+            for ix, bin in enumerate(bins):
+                frequency = 0
+                for obsname, meta_data in self.items():
+                    if self.__filter(obsname, filter):
+                        continue
+
+                    for residual in meta_data['residual']:
+                        if ix == 0:
+                            if residual < bin:
+                                frequency += 1
+
+                        elif ix == (len(bins) - 1):
+                            if residual > bin:
+                                frequency += 1
+
+                        else:
+                            if bins[ix - 1] <= residual < bin:
+                                frequency += 1
+
+                if ix == 0:
+                    name = "Less than {}".format(bin)
+
+                elif ix == (len(bins) - 1):
+                    name = "Greater than {}".format(bin)
+
+                else:
+                    name = "{} to {}".format(bins[ix - 1] + 1, bin)
+
+                d[ix + 1] = {'name': name,
+                             'frequency': frequency}
+
+            tick_num = []
+            tick_name = []
+            for index, meta_data in sorted(d.items()):
+                axes.bar(index, meta_data['frequency'], width=0.8)
+                tick_num.append(index)
+                tick_name.append(meta_data['name'])
+
+            plt.xticks(tick_num, tick_name, rotation=45, fontsize=10)
+            plt.xlim([0.5, len(tick_num) + 1])
+            plt.subplots_adjust(left=0.12, bottom=0.22,
+                                right=0.90, top=0.90,
+                                wspace=0.20, hspace=0.20)
+            plt.ylabel("Frequency")
 
         return axes
+
 
 
 if __name__ == "__main__":

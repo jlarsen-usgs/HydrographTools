@@ -319,14 +319,6 @@ if __name__ == "__main__":
     ws = r'C:\Users\jlarsen\Desktop\Lucerne\Lucerne_OWHM\V0_initial_from_MODOPTIM\output'
     hydname = "hydmod.out"
 
-    # hydmod = HydmodObs(os.path.join(ws, hydname))
-    # df = hydmod.get_dataframe(start_datetime='12-31-1941')
-
-    # headers = list(df)
-
-    # for header in headers:
-    #     df[header].plot()
-    #     plt.show()
     tmp = HydModOut(os.path.join(ws, hydname))
     tmp.date_time(start_date="12-31-1941")
     print('break')
