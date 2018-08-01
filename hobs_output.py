@@ -444,6 +444,15 @@ class HobsOut(dict):
             **kwargs: matplotlib kwargs
 
         """
+        simulated = True
+        if "observed" in kwargs:
+            simulated = False
+            kwargs.pop('observed')
+
+        observed = True
+        if "simulated" in kwargs:
+            observed = False
+            kwargs.pop('simulated')
 
         if obsname not in self:
             raise AssertionError("Obsname {}: not valid".format(obsname))
@@ -453,26 +462,26 @@ class HobsOut(dict):
             ax = kwargs.pop('ax')
             axes = True
 
+        if not axes:
+            ax = plt.subplot(111)
+
         obsval = self[obsname]['obsval']
         simval = self[obsname]['simval']
         date = self[obsname]['date']
 
-        kwargs['label'] = "Observed WL"
-        kwargs['color'] = 'r'
-        if axes:
+        if observed:
+            kwargs['label'] = "Observed"
+            kwargs['color'] = 'r'
+
             ax.plot(date, obsval, *args, **kwargs)
-        else:
-            plt.plot(date, obsval, *args, **kwargs)
 
-        kwargs['label'] = "Simulated Head"
-        kwargs['color'] = 'b'
-        if axes:
+        if simulated:
+            kwargs['label'] = "Simulated"
+            kwargs['color'] = 'b'
+
             ax.plot(date, simval, *args, **kwargs)
-        else:
-            plt.plot(date, simval, *args, **kwargs)
 
-        if axes:
-            return ax
+        return ax
 
     def plot_measured_vs_simulated(self, filter=None, **kwargs):
         """

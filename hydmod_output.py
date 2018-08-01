@@ -279,40 +279,32 @@ class HydModOut(BinaryData, dict):
         if self.datetime:
             time = self.datetime
 
+        if not axes:
+            ax = plt.subplot(111)
+
         if "layer" not in kwargs:
 
             for lay, record in self[hydlbl].items():
                 kwargs["color"] = COLORS[lay]
-                kwargs['label'] = "Layer {} {}".format(lay, record['arr'])
+                kwargs['label'] = "Layer {}".format(lay)
 
-                if axes:
-                    if strip:
-                        ax.plot(time[1:], record["data"][1:], *args, **kwargs)
-                    else:
-                        ax.plot(time, record["data"], *args, **kwargs)
+                if strip:
+                    ax.plot(time[1:], record["data"][1:], *args, **kwargs)
                 else:
-                    if strip:
-                        plt.plot(time[1:], record["data"][1:], *args, **kwargs)
-                    else:
-                        plt.plot(time, record["data"], *args, **kwargs)
+                    ax.plot(time, record["data"], *args, **kwargs)
+
 
         else:
             layer = kwargs.pop("layer")
-            if axes:
-                if strip:
-                    ax.plot(time[1:], self[hydlbl][layer]['data'][1:],
-                             *args, **kwargs)
-                else:
-                    ax.plot(time, self[hydlbl][layer]['data'], *args, **kwargs)
-            else:
-                if strip:
-                    plt.plot(time[1:], self[hydlbl][layer]['data'][1:],
-                             *args, **kwargs)
-                else:
-                    plt.plot(time, self[hydlbl][layer]['data'], *args, **kwargs)
 
-        if axes:
-            return ax
+            if strip:
+                ax.plot(time[1:], self[hydlbl][layer]['data'][1:],
+                         *args, **kwargs)
+            else:
+                ax.plot(time, self[hydlbl][layer]['data'], *args, **kwargs)
+
+
+        return ax
 
 
 if __name__ == "__main__":
