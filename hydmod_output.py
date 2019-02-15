@@ -308,7 +308,7 @@ class HydModOut(BinaryData, dict):
 
 
 if __name__ == "__main__":
-    ws = r'C:\Users\jlarsen\Desktop\Lucerne\Lucerne_OWHM\V0_initial_from_MODOPTIM\output'
+    ws = r'C:\Users\jlarsen\Desktop\Lucerne\Lucerne_OWHM\V2_combined_OWHM\output'
     hydname = "hydmod.out"
 
     tmp = HydModOut(os.path.join(ws, hydname))
