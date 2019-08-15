@@ -15,7 +15,7 @@ class HobsHeader(object):
               obs_head: None,
               obs_name: None,
               date: None,
-              dyear : None}
+              dyear: None}
 
 
 class HobsOut(dict):
@@ -26,14 +26,29 @@ class HobsOut(dict):
 
     If observation name is consistant for a site, a time series is created
     for plotting!
+
+    Parameters
+    ----------
+    filename : str
+        hobs filename
+    strip_after : str
+        flag to indicate a character to strip the hobs label after for
+        grouping wells.
+
+        Example:  OBS_1
+                  OBS_2
+        strip_after could be set to "_" and then all OBS observations will
+        be stored under the OBS key. This is extremely useful for plotting
+        and calculating statistics
+
     """
 
-    def __init__(self, filename):
+    def __init__(self, filename, strip_after=""):
         super(HobsOut, self).__init__()
         self.name = filename
-
+        self._strip_after = strip_after
+        self._dataframe = None
         self.__read_hobs_output()
-
 
     def __read_hobs_output(self):
         """
@@ -60,38 +75,43 @@ class HobsOut(dict):
         """
         t = line.strip().split()
         obsname = t[HobsHeader.header[HobsHeader.obs_name]]
+        dict_name = obsname
+        if self._strip_after:
+            dict_name = obsname.split(self._strip_after)[0]
         simval = float(t[HobsHeader.header[HobsHeader.sim_head]])
         obsval = float(t[HobsHeader.header[HobsHeader.obs_head]])
         residual = simval - obsval
         date = self.__set_datetime_object(t[HobsHeader.header[HobsHeader.date]])
         decimal_date = float(t[HobsHeader.header[HobsHeader.dyear]])
 
-        if obsname in self:
-            self[obsname]['simval'].append(simval)
-            self[obsname]['obsval'].append(obsval)
-            self[obsname]['date'].append(date)
-            self[obsname]['decimal_date'].append(decimal_date)
-            self[obsname]['residual'].append(residual)
+        if dict_name in self:
+            self[dict_name]['simval'].append(simval)
+            self[dict_name]['obsval'].append(obsval)
+            self[dict_name]['date'].append(date)
+            self[dict_name]['decimal_date'].append(decimal_date)
+            self[dict_name]['residual'].append(residual)
+            self[dict_name]["obsname"].append(obsname)
         else:
-            self[obsname] = {"simval": [simval], "obsval": [obsval],
-                             "date": [date], "decimal_date": [decimal_date],
-                             "residual": [residual]}
+            self[dict_name] = {"obsname": [obsname], "date": [date],
+                               "decimal_date": [decimal_date],
+                               "simval": [simval], "obsval": [obsval],
+                               "residual": [residual]}
 
     def __set_header(self, line):
         """
         Reads header line and sets header index
 
-        Args:
-            line:
-
-        Returns:
+        Parameters
+        ----------
+        line : str
+            first line of the HOB file
 
         """
         n = 0
         s = ""
 
         for i in line:
-            s += (i)
+            s += i
             if s in HobsHeader.header:
                 HobsHeader.header[s] = n
                 n += 1
@@ -111,10 +131,13 @@ class HobsOut(dict):
         """
         Reformats a string of YYYY-mm-dd to a datetime object
 
-        Args:
-            s: (str) string of YYYY-mm-dd
+        Parameters
+        ----------
+        s : str
+            string of YYYY-mm-dd
 
-        Returns:
+        Returns
+        -------
             datetime.date
         """
         return dt.datetime.strptime(s, "%Y-%m-%d")
@@ -122,22 +145,59 @@ class HobsOut(dict):
     def __get_date_string(self, date):
         """
 
-        Args:
-            datetime:
+        Parmaeters
+        ----------
+            date: datetime.datetime object
 
-        Returns:
+        Returns
+        -------
+            string
 
         """
         return date.strftime("%Y/%m/%d")
+
+    @property
+    def obsnames(self):
+        """
+        Return a list of obsnames from the HobsOut dictionary
+        """
+        return self.keys()
+
+    def to_dataframe(self):
+        """
+        Method to get a pandas dataframe object of the
+        HOBs data.
+
+        Returns
+        -------
+            pd.DataFrame
+        """
+        import pandas as pd
+
+        if self._dataframe is None:
+            df = None
+            for hobsname, d in self.items():
+                t = pd.DataFrame(d)
+                if df is None:
+                    df = t
+                else:
+                    df = pd.concat([df, t], ignore_index=True)
+            self._dataframe = df
+
+        return self._dataframe
 
     def get_sum_squared_errors(self, obsname):
         """
         Returns the sum of squared errors from the residual
 
-        Args:
-            obsname: (str)
+        Parameters
+        ----------
+        obsname : str
+            observation name
 
-        Returns:
+        Returns
+        -------
+            float: sum of square error
         """
         return sum([i**2 for i in self[obsname]['residual']])
 
@@ -145,10 +205,14 @@ class HobsOut(dict):
         """
         Returns the RMSE from the residual
 
-        Args:
-            obsname: (str)
+        Parameters
+        ----------
+        obsname : str
+            observation name
 
-        Returns:
+        Returns
+        -------
+            float: rmse
         """
         return np.sqrt(np.mean([i**2 for i in self[obsname]['residual']]))
 
@@ -156,10 +220,14 @@ class HobsOut(dict):
         """
         Returns the number of observations for an obsname
 
-        Args:
-            obsname: (str)
+        Parameters
+        ----------
+        obsname : str
+            observation name
 
-        Returns:
+        Returns
+        -------
+            int
         """
         return len(self[obsname]['simval'])
 
@@ -167,40 +235,49 @@ class HobsOut(dict):
         """
         Returns the datetime.date and maximum residual value
 
-        Args:
-            obsname: (str)
+        Parameters
+        ----------
+        obsname : str
+            observation name
 
-        Returns:
+        Returns
+        -------
             tuple: (datetime.date, residual)
         """
         data = self[obsname]['residual']
         index = data.index(max(data))
         date = self[obsname]['date'][index]
-        return (date, max(data))
+        return date, max(data)
 
     def get_minimum_residual(self, obsname):
         """
         Returns the datetime.date, minimum residual value
 
-        Args:
-            obsname: (str)
+        Parameters
+        ----------
+        obsname : str
+            observation name
 
-        Returns:
+        Returns
+        -------
             tuple: (datetime.date, residual)
         """
         data = self[obsname]['residual']
         index = data.index(min(data))
         date = self[obsname]['date'][index]
-        return (date, min(data))
+        return date, min(data)
 
     def get_mean_residual(self, obsname):
         """
         Returns the datetime.date, minimum residual value
 
-        Args:
-            obsname: (str)
+        Parameters
+        ----------
+        obsname : str
+            observation name
 
-        Returns:
+        Returns
+        -------
             tuple: (datetime.date, residual)
         """
         data = self[obsname]['residual']
@@ -210,10 +287,13 @@ class HobsOut(dict):
         """
         Returns the datetime.date, minimum residual value
 
-        Args:
-            obsname: (str)
+        Parameters
+        ----------
+        obsname : str
+            observation name
 
-        Returns:
+        Returns
+        -------
             tuple: (datetime.date, residual)
         """
         data = self[obsname]['residual']
@@ -223,10 +303,14 @@ class HobsOut(dict):
         """
         Returns the datetime.date, simulated, and observed
         heads at the maximum residual value
-        Args:
-            obsname: (str)
 
-        Returns:
+        Parameters
+        ----------
+        obsname : str
+            observation name
+
+        Returns
+        -------
             tuple: (datetime.date, simulated head, observed head)
         """
         resid = self[obsname]['residual']
@@ -234,16 +318,20 @@ class HobsOut(dict):
         observed = self[obsname]['obsval'][index]
         simulated = self[obsname]['simval'][index]
         date = self[obsname]['date'][index]
-        return (date, simulated, observed)
+        return date, simulated, observed
 
     def get_minimum_residual_heads(self, obsname):
         """
         Returns the datetime.date, simulated, and observed
         heads at the maximum residual value
-        Args:
-            obsname: (str)
 
-        Returns:
+        Parameters
+        ----------
+        obsname : str
+            observation name
+
+        Returns
+        -------
             tuple: (datetime.date, simulated head, observed head)
         """
         resid = self[obsname]['residual']
@@ -251,19 +339,22 @@ class HobsOut(dict):
         observed = self[obsname]['obsval'][index]
         simulated = self[obsname]['simval'][index]
         date = self[obsname]['date'][index]
-        return (date, simulated, observed)
+        return date, simulated, observed
 
     def get_residual_bias(self, filter=None):
         """
         Method to determine the bias of measurements +-
         by checking the residual. Returns fraction of residuals
         > 0.
-        Args:
-            filter: (str, list, tuple, or function)
-                filtering criteria for writing statistics.
-                Function must return True for filter out, false to use
 
-        Returns:
+        Parameters
+        ----------
+        filter: (str, list, tuple, or function)
+            filtering criteria for writing statistics.
+            Function must return True for filter out, false to use
+
+        Returns
+        -------
             (float) fraction of residuals greater than zero
         """
         nobs = 0.
@@ -290,8 +381,14 @@ class HobsOut(dict):
         """
         Method to write a dbf file from a the HOBS dictionary
 
-        Args:
-            dbfname: (str) dbf file name
+        Parameters
+        ----------
+        dbfname : str
+            dbf file name
+        filter: (str, list, tuple, or function)
+            filtering criteria for writing statistics.
+            Function must return True for filter out, false for write to file
+
         """
         import shapefile
         data = []
@@ -307,7 +404,12 @@ class HobsOut(dict):
                              meta_data['obsval'][ix],
                              meta_data['residual'][ix]])
 
-        w = shapefile.Writer()
+        try:
+            # traps for pyshp 1 vs. pyshp 2
+            w = shapefile.Writer(dbf=dbfname)
+        except Exception:
+            w = shapefile.Writer()
+
         w.field("HOBSNAME", fieldType="C")
         w.field("HobsDate", fieldType="D")
         w.field("HeadSim", fieldType='N', decimal=8)
@@ -317,15 +419,23 @@ class HobsOut(dict):
         for rec in data:
             w.record(*rec)
 
-        w.save(dbf=dbfname)
+        try:
+            w.save(dbf=dbfname)
+        except AttributeError:
+            w.close()
 
     def write_min_max_residual_dbf(self, dbfname, filter=None):
         """
         Method to write a dbf of transient observations
         using observation statistics
 
-        Args:
-            dbfname: (str) dbf file name
+        Parameters
+        ----------
+        dbfname : str
+            dbf file name
+        filter: (str, list, tuple, or function)
+            filtering criteria for writing statistics.
+            Function must return True for filter out, false for write to file
 
         """
         import shapefile
@@ -345,7 +455,12 @@ class HobsOut(dict):
                          self.__get_date_string(min_date), resid_min,
                          simval_max, obsval_max, simval_min, obsval_min])
 
-        w = shapefile.Writer()
+        try:
+            # traps for pyshp 1 vs. pyshp 2
+            w = shapefile.Writer(dbf=dbfname)
+        except Exception:
+            w = shapefile.Writer()
+
         w.field("HOBSNAME", fieldType="C")
         w.field("FREQUENCY", fieldType="N")
         w.field("MaxDate", fieldType="C")
@@ -360,20 +475,28 @@ class HobsOut(dict):
         for rec in data:
             w.record(*rec)
 
-        w.save(dbf=dbfname)
+        try:
+            w.save(dbf=dbfname)
+        except AttributeError:
+            w.close()
 
     def __filter(self, obsname, filter):
         """
         Boolean filetering method, checks if observation name
         is in the filter.
 
-        Args:
-            filter: (str, list, tuple, or function)
-                filtering criteria for writing statistics.
-                Function must return True for filter out, false for write to file
+        Parameters
+        ----------
+        obsname : str
+            observation name
+        filter: (str, list, tuple, or function)
+            filtering criteria for writing statistics.
+            Function must return True for filter out, false for write to file
 
-        Returns:
+        Returns
+        -------
             bool: True if obsname in filter
+
         """
         if filter is None:
             return False
@@ -400,11 +523,13 @@ class HobsOut(dict):
         Method to write summary calibration statistics to a
         CSV file for analysis and reports
 
-        Args:
-            csvname: (str) csv file name
-            filter: (str, list, tuple, or function)
-                filtering criteria for writing statistics.
-                Function must return True for filter out, false for write to file
+        Parameters
+        ----------
+        csvname : str
+            csv file name
+        filter: (str, list, tuple, or function)
+            filtering criteria for writing statistics.
+            Function must return True for filter out, false for write to file
 
         """
         data = []
@@ -438,10 +563,16 @@ class HobsOut(dict):
         """
         Plotting functionality from the hobs dictionary
 
-        Args:
-            obsname: (str) hobs package observation name
-            *args: matplotlib args
-            **kwargs: matplotlib kwargs
+        Parameters
+        ----------
+        obsname: str
+            hobs package observation name
+        *args: matplotlib args
+        **kwargs: matplotlib kwargs
+
+        Returns
+        -------
+            matplotlib.pyplot.axes object
 
         """
         simulated = True
@@ -487,14 +618,17 @@ class HobsOut(dict):
         """
         Plots measured vs. simulated data along a 1:1 profile.
 
-        Args:
-            filter: (str, list, tuple, or function)
-                filtering criteria for writing statistics.
-                Function must return True for filter out, false for write to file
-            **kwargs: matplotlib.pyplot plotting kwargs
+        Parameters
+        ----------
+        filter: (str, list, tuple, or function)
+            filtering criteria for writing statistics.
+            Function must return True for filter out, false for write to file
+        **kwargs: matplotlib.pyplot plotting kwargs
 
-        Returns:
-            axes: matplotlib axes object
+        Returns
+        -------
+            matplotlib.pyplot.axes object
+
         """
         axes = plt.subplot(111)
 
@@ -508,7 +642,6 @@ class HobsOut(dict):
 
             axes.plot(observed, simulated, 'bo', markeredgecolor='k')
 
-
         return axes
 
     def plot_simulated_vs_residual(self, filter=None,
@@ -516,18 +649,21 @@ class HobsOut(dict):
         """
         Creates a matplotlib plot of simulated heads vs residual
 
-        Args:
-            filter: (str, list, tuple, or function)
-                filtering criteria for writing statistics.
-                Function must return True for filter out, false for write to file
-            histogram: (bool)
-                Boolean variable that defines either a scatter plot (False)
-                or a histogram (True) of residuals
+        Parameters
+        ----------
+        filter: (str, list, tuple, or function)
+            filtering criteria for writing statistics.
+            Function must return True for filter out, false for write to file
+        histogram: (bool)
+            Boolean variable that defines either a scatter plot (False)
+            or a histogram (True) of residuals
 
-            **kwargs: matplotlib.pyplot plotting kwargs
+        **kwargs: matplotlib.pyplot plotting kwargs
 
-        Returns:
-            axes: matplotlib axes object
+        Returns
+        -------
+            matplotlib.pyplot.axes object
+
         """
         axes = plt.subplot(111)
 
@@ -546,7 +682,7 @@ class HobsOut(dict):
             bins = np.arange(-25, 26, 5)
 
             d = {}
-            for ix, bin in enumerate(bins):
+            for ix, abin in enumerate(bins):
                 frequency = 0
                 for obsname, meta_data in self.items():
                     if self.__filter(obsname, filter):
@@ -554,25 +690,25 @@ class HobsOut(dict):
 
                     for residual in meta_data['residual']:
                         if ix == 0:
-                            if residual < bin:
+                            if residual < abin:
                                 frequency += 1
 
                         elif ix == (len(bins) - 1):
-                            if residual > bin:
+                            if residual > abin:
                                 frequency += 1
 
                         else:
-                            if bins[ix - 1] <= residual < bin:
+                            if bins[ix - 1] <= residual < abin:
                                 frequency += 1
 
                 if ix == 0:
-                    name = "Less than {}".format(bin)
+                    name = "Less than {}".format(abin)
 
                 elif ix == (len(bins) - 1):
-                    name = "Greater than {}".format(bin)
+                    name = "Greater than {}".format(abin)
 
                 else:
-                    name = "{} to {}".format(bins[ix - 1] + 1, bin)
+                    name = "{} to {}".format(bins[ix - 1] + 1, abin)
 
                 d[ix + 1] = {'name': name,
                              'frequency': frequency}
@@ -595,12 +731,11 @@ class HobsOut(dict):
         return axes
 
 
-
 if __name__ == "__main__":
     ws = r'C:\Users\jlarsen\Desktop\Lucerne\Lucerne_OWHM\V0_initial_from_MODOPTIM\output'
-    hobsname = "hobs.out"
+    hobs_name = "hobs.out"
 
-    tmp = HobsOut(os.path.join(ws, hobsname))
+    tmp = HobsOut(os.path.join(ws, hobs_name))
     tmp.plot("04N01W01R04S", "o-")
     plt.legend(loc=0, numpoints=1)
     plt.show()
