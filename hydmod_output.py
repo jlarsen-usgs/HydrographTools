@@ -87,6 +87,7 @@ class HydModOut(BinaryData, dict):
         self.nobs = self.read_integer()
         self.totim = []
         self.datetime = []
+        self._dataframe = None
 
         self.__get_precision()
 
@@ -221,6 +222,8 @@ class HydModOut(BinaryData, dict):
         Returns:
             (list) datetime.datetime objects
         """
+        self._dataframe = None
+
         mo, day, year = [int(i) for i in start_date.split('-')]
         start_date = dt.datetime(year, mo, day)
 
@@ -248,6 +251,45 @@ class HydModOut(BinaryData, dict):
 
         return self.datetime
 
+    @property
+    def to_dataframe(self):
+        """
+        Method to return a pandas dataframe of data
+
+        :return: dataframe
+        """
+        if self._dataframe is None:
+            import pandas as pd
+
+            if not self.datetime:
+                print("Warning: setting datetime with default values")
+                self.date_time()
+            year = np.array([i.year for i in self.datetime])
+
+            df = None
+            for hydname, d in self.items():
+                nlay = len(d)
+                composite = []
+                for lay, data in d.items():
+                    rec = np.array(data['data'])
+                    if not composite:
+                        composite = rec
+                    else:
+                        composite += rec
+                composite /= float(nlay)
+
+                d = {hydname: composite}
+
+                if df is None:
+                    df = pd.DataFrame({"year": year,
+                                       "datetime": self.datetime,
+                                       hydname: composite})
+                else:
+                    df[hydname] = composite
+
+            self._dataframe = df
+
+        return self._dataframe
 
     def plot(self, hydlbl, *args, **kwargs):
         """
