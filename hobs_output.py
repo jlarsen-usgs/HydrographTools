@@ -550,7 +550,7 @@ class HobsOut(dict):
             data.append((obsname, resid_mean, resid_median,
                          resid_min, resid_max, rmse, frequency))
 
-        data = np.array(data, dtype=[('id', 'S15'), ('mean', float),
+        data = np.array(data, dtype=[('id', 'O'), ('mean', float),
                                      ('med', float), ('min', float),
                                      ('max', float), ('rmse', float),
                                      ('num', np.int)])
