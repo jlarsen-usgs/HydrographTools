@@ -78,7 +78,7 @@ class HydModOut(BinaryData, dict):
     Inheits functionality from the FlopyBinaryData class which is reused
     in this script as BinaryData(object)
     """
-    def __init__(self, filename):
+    def __init__(self, filename, hdry=None):
 
         super(HydModOut, self).__init__()
 
@@ -88,7 +88,7 @@ class HydModOut(BinaryData, dict):
         self.totim = []
         self.datetime = []
         self._dataframe = None
-
+        self._hdry = hdry
         self.__get_precision()
 
         self.itmuni = self.read_integer()
@@ -225,7 +225,7 @@ class HydModOut(BinaryData, dict):
         self._dataframe = None
 
         mo, day, year = [int(i) for i in start_date.split('-')]
-        start_date = dt.datetime(year, mo, day)
+        start_date = dt.datetime(year, mo, day) - dt.timedelta(seconds=1)
 
         if isinstance(itmuni, int):
             itmuni = ITMUNI_LUT[itmuni]
@@ -272,11 +272,13 @@ class HydModOut(BinaryData, dict):
                 composite = []
                 for lay, data in d.items():
                     rec = np.array(data['data'])
-                    if not composite:
-                        composite = rec
-                    else:
-                        composite += rec
-                composite /= float(nlay)
+                    composite.append(rec)
+                composite = np.array(composite)
+
+                if self._hdry is not None:
+                    composite[composite == self._hdry] = np.nan
+
+                composite = np.nanmean(composite, axis=0)
 
                 d = {hydname: composite}
 
