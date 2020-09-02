@@ -36,6 +36,7 @@ class BinaryData(object):
 
     def set_float(self, precision):
         self.precision = precision
+        self.precision = "double"
         if precision.lower() == 'double':
             self.real = np.float64
             self.floattype = 'f8'
@@ -130,9 +131,9 @@ class HydModOut(BinaryData, dict):
         self.__hydlbl_metadata.append((arr, intyp, layer, hydlbl))
 
         if hydlbl in self:
-            self[hydlbl][layer] = {"arr": arr, "intyp": intyp, "data": []}
+            self[hydlbl][layer][arr] = {"intyp": intyp, "data": []}
         else:
-            self[hydlbl] = {layer: {"arr": arr, "intyp": intyp, "data": []}}
+            self[hydlbl] = {layer: {arr: {"intyp": intyp, "data": []}}}
 
     def __set_data_to_dict(self, record):
         """
@@ -146,11 +147,12 @@ class HydModOut(BinaryData, dict):
 
         self.totim.append(float(record[0]))
         for ix, metadata in enumerate(self.__hydlbl_metadata):
+            arr = metadata[0]
             hydlbl = metadata[-1]
             klay = metadata[-2]
             value = record[ix + 1]
 
-            self[hydlbl][klay]["data"].append(value)
+            self[hydlbl][klay][arr]["data"].append(value)
 
     def __split_label(self, lbl):
         """
@@ -164,9 +166,15 @@ class HydModOut(BinaryData, dict):
             Arr, Intyp, KLay, Hydlbl: (str, str, int, str)
         """
         arr = lbl[:2]
-        intyp = lbl[2]
-        layer = int(lbl[3:6])
-        hydlbl = lbl[6:]
+        try:
+            intyp = int(lbl[2])
+            intyp = "C"
+            layer = int(lbl[5:8])
+            hydlbl = lbl[8:]
+        except:
+            intyp = lbl[2]
+            layer = int(lbl[3:6])
+            hydlbl = lbl[6:]
         return arr, intyp, layer, hydlbl
 
     def __get_precision(self):
@@ -251,13 +259,15 @@ class HydModOut(BinaryData, dict):
 
         return self.datetime
 
-    @property
-    def to_dataframe(self):
+    def to_dataframe(self, arr):
         """
         Method to return a pandas dataframe of data
 
+        :param str arr: hydmod arr parameter type
+
         :return: dataframe
         """
+        arr = arr.upper()
         if self._dataframe is None:
             import pandas as pd
 
@@ -270,9 +280,12 @@ class HydModOut(BinaryData, dict):
             for hydname, d in self.items():
                 nlay = len(d)
                 composite = []
-                for lay, data in d.items():
-                    rec = np.array(data['data'])
-                    composite.append(rec)
+                for lay, ad in d.items():
+                    for hydarr, data in ad.items():
+                        if hydarr != arr:
+                            continue
+                        rec = np.array(data['data'])
+                        composite.append(rec)
                 composite = np.array(composite)
 
                 if self._hdry is not None:
@@ -293,7 +306,7 @@ class HydModOut(BinaryData, dict):
 
         return self._dataframe
 
-    def plot(self, hydlbl, *args, **kwargs):
+    def plot(self, hydlbl, arr, *args, **kwargs):
         """
         Returns a matplotlib axes object for layering in a plot.
 
@@ -305,6 +318,7 @@ class HydModOut(BinaryData, dict):
             *args: (matplotlib args)
             **kwargs: (matplotlib kwargs) as well as a layer option
         """
+        arr = arr.upper()
 
         if hydlbl not in self:
             raise AssertionError("hydlbl {}: not valid".format(hydlbl))
@@ -342,11 +356,11 @@ class HydModOut(BinaryData, dict):
             layer = kwargs.pop("layer")
 
             if strip:
-                ax.plot(time[1:], self[hydlbl][layer]['data'][1:],
+                ax.plot(time[1:], self[hydlbl][layer][arr]['data'][1:],
                          *args, **kwargs)
             else:
-                ax.plot(time, self[hydlbl][layer]['data'], *args, **kwargs)
-
+                ax.plot(time, self[hydlbl][layer][arr]['data'],
+                        *args, **kwargs)
 
         return ax
 
